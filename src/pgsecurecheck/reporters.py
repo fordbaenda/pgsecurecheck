@@ -49,7 +49,8 @@ def render_html(report: ScanReport) -> str:
     for finding in report.findings:
         counts[finding.severity.value] += 1
 
-    finding_cards: list[str] = []
+    high_cards: list[str] = []
+    other_rows: list[str] = []
     for finding in report.findings:
         evidence = escape(json.dumps(finding.evidence, indent=2, sort_keys=True, default=str))
         references = "".join(
@@ -59,8 +60,9 @@ def render_html(report: ScanReport) -> str:
         )
         reference_block = f'<ul class="references">{references}</ul>' if references else ""
         severity = finding.severity.value
-        finding_cards.append(
-            f"""
+        if severity in {"critical", "high"}:
+            high_cards.append(
+                f"""
             <article class="finding">
               <div class="finding-head">
                 <div><h3>{escape(finding.title)}</h3>
@@ -72,7 +74,57 @@ def render_html(report: ScanReport) -> str:
               <details><summary>Kanıtı göster</summary><pre>{evidence}</pre></details>
               {reference_block}
             </article>"""
+            )
+        else:
+            other_rows.append(
+                f'<tr><td><span class="badge {severity}">{severity.upper()}</span></td>'
+                f"<td>{escape(finding.check_id)}</td><td><strong>{escape(finding.title)}</strong>"
+                f'<div class="table-note">{escape(finding.recommendation)}</div></td>'
+                f"<td><code>{escape(finding.resource)}</code></td></tr>"
+            )
+
+    categories = {finding.category for finding in report.findings}
+    priorities: list[tuple[str, str]] = []
+    if categories & {"authentication", "network"}:
+        priorities.append(
+            (
+                "Kimlik doğrulama ve ağ kurallarını doğrula",
+                "HBA kapsamını daralt; TLS ve SCRAM geçişini kontrollü biçimde planla.",
+            )
         )
+    if "privileges" in categories:
+        priorities.append(
+            (
+                "Yüksek yetkili rolleri gözden geçir",
+                "Superuser ve yönetici yetkilerini iş gereksinimleriyle karşılaştır.",
+            )
+        )
+    if "audit" in categories:
+        priorities.append(
+            (
+                "Denetim yapılandırmasını doğrula",
+                "pgAudit preload, extension ve politika ayarlarının tutarlılığını kontrol et.",
+            )
+        )
+    if "logging" in categories:
+        priorities.append(
+            (
+                "Loglama kapsamını tamamla",
+                "Bağlantı yaşam döngüsü ve denetim kimliği alanlarını kurum politikasına uyarla.",
+            )
+        )
+    if not priorities and report.findings:
+        priorities.append(
+            (
+                "Bulguları doğrula ve önceliklendir",
+                "Değişiklik yapmadan önce kanıtları sistem sahipleriyle birlikte incele.",
+            )
+        )
+    priority_html = "".join(
+        f'<div class="priority"><b>{index}</b><div><strong>{escape(title)}</strong><br>'
+        f"{escape(description)}</div></div>"
+        for index, (title, description) in enumerate(priorities[:4], start=1)
+    )
 
     skipped_rows = "".join(
         f"<tr><td>{escape(check_id)}</td><td>{escape(reason)}</td></tr>"
@@ -85,8 +137,24 @@ def render_html(report: ScanReport) -> str:
         if skipped_rows
         else ""
     )
-    findings_html = "".join(finding_cards) or (
-        '<div class="empty">Bu taramada raporlanabilir bulgu tespit edilmedi.</div>'
+    high_findings_html = "".join(high_cards) or (
+        '<div class="empty">Kritik veya yüksek önem seviyeli bulgu tespit edilmedi.</div>'
+    )
+    other_findings_html = "".join(other_rows)
+    other_section = (
+        '<section class="panel"><h2>Diğer bulgular</h2><div class="table-wrap"><table>'
+        "<thead><tr><th>Seviye</th><th>Kontrol</th><th>Bulgu ve öneri</th>"
+        f"<th>Kaynak</th></tr></thead><tbody>{other_findings_html}</tbody></table></div></section>"
+        if other_findings_html
+        else ""
+    )
+    summary_text = (
+        f"Tarama sonucunda {len(report.findings)} bulgu tespit edildi. "
+        f"Bunların {counts['critical'] + counts['high']} tanesi kritik veya yüksek önem "
+        "seviyesindedir. Değişikliklerden önce bulguların kanıtları, uygulama bağımlılıkları "
+        "ve izinli erişim kaynakları doğrulanmalıdır."
+        if report.findings
+        else "Tarama tamamlandı ve raporlanabilir güvenlik bulgusu tespit edilmedi."
     )
 
     return f"""<!doctype html>
@@ -129,6 +197,13 @@ def render_html(report: ScanReport) -> str:
     th,td{{padding:11px 10px;text-align:left;border-bottom:1px solid var(--line);
       vertical-align:top}}
     th{{color:var(--muted);font-size:12px;text-transform:uppercase}}
+    .table-note{{margin-top:4px;color:var(--muted);font-size:13px}}
+    .table-wrap{{overflow-x:auto}}
+    .notice{{padding:14px 16px;border-left:4px solid var(--medium);border-radius:8px;
+      background:#fffaeb}}
+    .priority{{display:grid;grid-template-columns:32px 1fr;gap:12px;margin:14px 0}}
+    .priority b{{display:grid;place-items:center;width:30px;height:30px;color:white;
+      border-radius:50%;background:#175cd3}}
     .empty{{padding:28px;text-align:center;color:#067647;background:#ecfdf3;border-radius:10px}}
     footer{{margin-top:22px;color:var(--muted);
       font-size:12px;text-align:center}}
@@ -136,7 +211,7 @@ def render_html(report: ScanReport) -> str:
       h1{{font-size:27px}}.panel{{padding:20px}}}}
     @media print{{body{{background:white}}.page{{width:100%;margin:0}}
       header,.card,.panel{{box-shadow:none}}
-      .finding{{break-inside:avoid}}details:not([open]) pre{{display:none}}}}
+      .finding,.priority{{break-inside:avoid}}details:not([open]) pre{{display:none}}}}
   </style>
 </head>
 <body><main class="page">
@@ -146,13 +221,21 @@ def render_html(report: ScanReport) -> str:
     <span>Araç sürümü: {escape(report.version)}</span>
     <span>Toplam bulgu: {len(report.findings)}</span></div></header>
   <section class="grid" aria-label="Özet">
-    <div class="card critical"><span>Kritik</span><strong>{counts["critical"]}</strong></div>
-    <div class="card high"><span>Yüksek</span><strong>{counts["high"]}</strong></div>
+    <div class="card high"><span>Kritik / Yüksek önem</span>
+      <strong>{counts["critical"] + counts["high"]}</strong></div>
     <div class="card medium"><span>Orta</span><strong>{counts["medium"]}</strong></div>
     <div class="card low"><span>Düşük / Bilgi</span>
       <strong>{counts["low"] + counts["info"]}</strong></div>
+    <div class="card"><span>Atlanan kontrol</span>
+      <strong>{len(report.skipped_checks)}</strong></div>
   </section>
-  <section class="panel"><h2>Bulgular</h2>{findings_html}</section>
+  <section class="panel"><h2>Yönetici özeti</h2><p>{escape(summary_text)}</p>
+    <div class="notice"><strong>Not:</strong> Bu rapor karar desteği sağlar; tek başına
+      uyumluluk kanıtı veya otomatik düzeltme talimatı değildir.</div></section>
+  <section class="panel"><h2>Önerilen aksiyon sırası</h2>{priority_html}</section>
+  <section class="panel"><h2>Kritik ve yüksek önem seviyeli bulgular</h2>
+    {high_findings_html}</section>
+  {other_section}
   {skipped_section}
   <footer>{escape(report.tool)} {escape(report.version)} ·
     Bu rapor karar desteği sağlar; uyumluluk kanıtı değildir.</footer>

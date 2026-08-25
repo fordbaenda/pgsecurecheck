@@ -80,3 +80,7 @@ def test_html_report_contains_summary_and_escapes_finding_content() -> None:
     assert "<script>alert(1)</script>" not in rendered
     assert "role:example&amp;admin" in rendered
     assert "permission &lt;denied&gt;" in rendered
+    assert "Yönetici özeti" in rendered
+    assert "Önerilen aksiyon sırası" in rendered
+    assert "Kritik ve yüksek önem seviyeli bulgular" in rendered
+    assert "Atlanan kontrol" in rendered
