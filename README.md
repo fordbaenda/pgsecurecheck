@@ -73,6 +73,14 @@ Generate JSON for CI and fail when a high or critical finding exists:
 pgsecurecheck scan --format json --output report.json --fail-on high
 ```
 
+Generate SARIF for GitHub Code Scanning:
+
+```bash
+pgsecurecheck scan --format sarif --output pgsecurecheck.sarif --fail-on high
+```
+
+See the [GitHub Code Scanning integration guide](docs/github-code-scanning.md).
+
 List checks without connecting:
 
 ```bash
@@ -146,7 +154,7 @@ a finding.
 
 - Expand privilege, RLS, logging, extension, and `SECURITY DEFINER` checks
 - Add PostgreSQL 14–18 integration tests
-- Add HTML and SARIF reporters
+- Add an HTML reporter
 - Add configurable policies, suppressions, and baselines
 - Publish signed Python packages and container images
 
