@@ -15,10 +15,17 @@ no Python, pip, virtual environment, package installation, or root access on the
 machine:
 
 ```bash
+curl -LO https://github.com/fordbaenda/pgsecurecheck/releases/latest/download/pgsecurecheck-linux-amd64
+curl -LO https://github.com/fordbaenda/pgsecurecheck/releases/latest/download/SHA256SUMS
 sha256sum --check SHA256SUMS
 chmod 700 pgsecurecheck-linux-amd64
 ./pgsecurecheck-linux-amd64 scan --dsn "$PGSECURECHECK_DSN"
 ```
+
+Alternatively, download both files from the
+[latest GitHub release](https://github.com/fordbaenda/pgsecurecheck/releases/latest).
+Each update to `main` also produces a temporary Actions artifact for testing, while
+versioned releases provide the stable customer downloads.
 
 Prefer running it remotely from an administration or jump host. See the
 [standalone Linux deployment guide](docs/standalone-linux.md).
