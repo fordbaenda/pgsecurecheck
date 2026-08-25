@@ -1,0 +1,57 @@
+name: Build standalone Linux release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install ".[release]"
+      - name: Build standalone executable
+        run: sh scripts/build-linux.sh
+      - name: Smoke test executable
+        run: |
+          dist/pgsecurecheck-linux-amd64 checks | grep -q '^PGSC-RLS-002'
+          dist/pgsecurecheck-linux-amd64 --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pgsecurecheck-linux-amd64
+          path: |
+            dist/pgsecurecheck-linux-amd64
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  github-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: linux-amd64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pgsecurecheck-linux-amd64
+          path: release
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          release/pgsecurecheck-linux-amd64
+          release/SHA256SUMS
+          --repo "${GITHUB_REPOSITORY}"
+          --generate-notes
+          --verify-tag

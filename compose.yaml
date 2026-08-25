@@ -1,0 +1,29 @@
+services:
+  postgres-insecure:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: pgsecurecheck_lab
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: lab-only-password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command:
+      - postgres
+      - -c
+      - password_encryption=md5
+      - -c
+      - ssl=off
+      - -c
+      - log_connections=off
+      - -c
+      - log_min_error_statement=fatal
+      - -c
+      - debug_print_plan=on
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pgsecurecheck_lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ./tests/lab/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
