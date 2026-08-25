@@ -11,7 +11,7 @@ from pgsecurecheck.checks import ALL_CHECKS
 from pgsecurecheck.database import Database
 from pgsecurecheck.engine import scan as run_scan
 from pgsecurecheck.models import SEVERITY_RANK, Severity
-from pgsecurecheck.reporters import render_console, render_json, render_sarif
+from pgsecurecheck.reporters import render_console, render_html, render_json, render_sarif
 
 app = typer.Typer(help="Read-only security posture assessment for PostgreSQL.")
 console = Console(stderr=True)
@@ -21,6 +21,7 @@ class OutputFormat(str, Enum):
     CONSOLE = "console"
     JSON = "json"
     SARIF = "sarif"
+    HTML = "html"
 
 
 @app.command()
@@ -40,10 +41,13 @@ def scan(
         console.print(f"[red]Scan failed:[/red] {error}")
         raise typer.Exit(code=2) from error
 
-    if output_format in {OutputFormat.JSON, OutputFormat.SARIF}:
-        rendered = (
-            render_json(report) if output_format == OutputFormat.JSON else render_sarif(report)
-        )
+    if output_format != OutputFormat.CONSOLE:
+        renderers = {
+            OutputFormat.JSON: render_json,
+            OutputFormat.SARIF: render_sarif,
+            OutputFormat.HTML: render_html,
+        }
+        rendered = renderers[output_format](report)
         if output:
             output.write_text(rendered + "\n", encoding="utf-8")
         else:

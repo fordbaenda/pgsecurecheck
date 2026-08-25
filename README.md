@@ -81,6 +81,12 @@ pgsecurecheck scan --format sarif --output pgsecurecheck.sarif --fail-on high
 
 See the [GitHub Code Scanning integration guide](docs/github-code-scanning.md).
 
+Generate a self-contained HTML report for review or PDF printing:
+
+```bash
+pgsecurecheck scan --format html --output pgsecurecheck-report.html
+```
+
 List checks without connecting:
 
 ```bash
@@ -154,7 +160,6 @@ a finding.
 
 - Expand privilege, RLS, logging, extension, and `SECURITY DEFINER` checks
 - Add PostgreSQL 14–18 integration tests
-- Add an HTML reporter
 - Add configurable policies, suppressions, and baselines
 - Publish signed Python packages and container images
 
