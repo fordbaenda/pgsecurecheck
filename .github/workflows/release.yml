@@ -2,6 +2,11 @@ name: Build standalone Linux release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing or new release tag to publish (optional)"
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -37,7 +42,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
     needs: linux-amd64
     runs-on: ubuntu-latest
     permissions:
@@ -50,10 +55,19 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "${GITHUB_REF_NAME}"
-          release/pgsecurecheck-linux-amd64
-          release/SHA256SUMS
-          --repo "${GITHUB_REPOSITORY}"
-          --generate-notes
-          --verify-tag
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" \
+              release/pgsecurecheck-linux-amd64 \
+              release/SHA256SUMS \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              release/pgsecurecheck-linux-amd64 \
+              release/SHA256SUMS \
+              --repo "${GITHUB_REPOSITORY}" \
+              --generate-notes \
+              --verify-tag
+          fi
